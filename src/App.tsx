@@ -65,12 +65,9 @@ export const App = () => {
           <header class="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 transition-colors duration-300">
         <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <a href="/" onClick={(e: any) => { e.preventDefault(); navigate('/'); }} class="flex items-center space-x-3 cursor-pointer group">
-            <div class="bg-blue-600 p-2 rounded-xl shadow-inner text-white group-hover:bg-blue-700 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div class="bg-transparent p-2 rounded-xl shadow-inner transition-colors">
+              <img src="/logo.svg" alt="AI Code Summit logo" class="h-10 w-auto" />
             </div>
-            <h1 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight group-hover:text-blue-600 transition-colors">AI Code Summit</h1>
           </a>
           <div class="flex items-center space-x-4">
             <button 
