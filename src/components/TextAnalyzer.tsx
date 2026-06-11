@@ -1,11 +1,16 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { pipeline, env } from '@huggingface/transformers';
 
 // Configure transformers.js to load models from our local public directory
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 export const TextAnalyzer = () => {
   const [text, setText] = useState('');
@@ -23,9 +28,11 @@ export const TextAnalyzer = () => {
       if (!classifierRef.current) {
         setStatus('Loading sentiment model...');
         // Load the sentiment analysis pipeline
-        classifierRef.current = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+        classifierRef.current = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', {
+          dtype: 'q8'
+        });
       }
-      
+
       setStatus('Analyzing text...');
       const output = await classifierRef.current(text);
       setResult(output[0]);
@@ -37,13 +44,19 @@ export const TextAnalyzer = () => {
       setLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (classifierRef.current && typeof classifierRef.current.dispose === 'function') { try { classifierRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
       <div class="p-6 md:p-8">
         <h3 class="text-2xl font-bold text-slate-900 mb-2">Sentiment Analyzer</h3>
         <p class="text-slate-500 mb-6">Type a sentence below to analyze its emotional tone.</p>
-        
+
         <div class="space-y-4">
           <textarea
             value={text}
@@ -51,7 +64,7 @@ export const TextAnalyzer = () => {
             placeholder="I love using Vite and Hono!"
             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none h-32 text-slate-800"
           />
-          
+
           <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
             <span class="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full w-full sm:w-auto text-center">
               {status}
@@ -102,8 +115,8 @@ export const TextAnalyzer = () => {
                 </span>
               </div>
               <div class="w-full bg-slate-200 rounded-full h-2 mt-2">
-                <div 
-                  class={`h-2 rounded-full ${result.label === 'POSITIVE' ? 'bg-green-500' : 'bg-red-500'}`} 
+                <div
+                  class={`h-2 rounded-full ${result.label === 'POSITIVE' ? 'bg-green-500' : 'bg-red-500'}`}
                   style={{ width: `${(result.score * 100).toFixed(0)}%` }}
                 ></div>
               </div>
@@ -114,3 +127,4 @@ export const TextAnalyzer = () => {
     </div>
   );
 };
+

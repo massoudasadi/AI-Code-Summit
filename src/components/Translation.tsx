@@ -1,54 +1,60 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import { useState, useRef, useEffect } from 'hono/jsx/dom';
 import { pipeline, env } from '@huggingface/transformers';
 
 // Configure transformers.js to load models from remote and use browser cache
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
 
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
+
 const LANGUAGES = [
   { label: 'English', code: 'en' },
-  { label: 'French', code: 'fr' },
-  { label: 'Spanish', code: 'es' },
-  { label: 'German', code: 'de' },
-  { label: 'Italian', code: 'it' },
-  { label: 'Chinese', code: 'zh' },
-  { label: 'Japanese', code: 'ja' },
-  { label: 'Russian', code: 'ru' },
-  { label: 'Arabic', code: 'ar' },
+  { label: 'French', code: 'fr' }
 ];
 
 export const Translation = () => {
-  const [text, setText] = useState('');
+  const [text, setText] = useState("Bonjour le monde! L'intelligence artificielle est incroyable et transforme l'avenir de la technologie.");
   const [translatedText, setTranslatedText] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('Ready to translate.');
-  const [sourceLang, setSourceLang] = useState('en');
-  const [targetLang, setTargetLang] = useState('fr');
+  const [sourceLang, setSourceLang] = useState('fr');
+  const [targetLang, setTargetLang] = useState('en');
 
   const translatorRef = useRef<any>(null);
 
+  // Use refs to avoid stale closures in event handlers
+  const stateRef = useRef({ text, sourceLang, targetLang });
+  stateRef.current = { text, sourceLang, targetLang };
+
   const translate = async () => {
-    if (!text.trim()) return;
+    const currentText = stateRef.current.text;
+    const currentSrc = stateRef.current.sourceLang;
+    const currentTgt = stateRef.current.targetLang;
+
+    if (!currentText.trim()) return;
 
     setLoading(true);
     setTranslatedText('');
     try {
       if (!translatorRef.current) {
-        setStatus('Loading M2M-100 model (optimising for GPU)...');
+        setStatus('Loading Opus-MT model...');
         // Use webgpu to avoid WASM heap limits (std::bad_alloc)
-        translatorRef.current = await pipeline('translation', 'Xenova/m2m100_418M', { 
+        translatorRef.current = await pipeline('translation', 'Xenova/opus-mt-fr-en', {
           dtype: 'q4',
           device: 'webgpu'
         });
       }
 
-      setStatus(`Translating from ${LANGUAGES.find(l => l.code === sourceLang)?.label} to ${LANGUAGES.find(l => l.code === targetLang)?.label}...`);
-      const output = await translatorRef.current(text, {
-        src_lang: sourceLang,
-        tgt_lang: targetLang,
-      });
+      setStatus(`Translating from ${LANGUAGES.find(l => l.code === currentSrc)?.label} to ${LANGUAGES.find(l => l.code === currentTgt)?.label}...`);
+
+      // Opus-MT is dedicated FR->EN, no src_lang/tgt_lang args needed
+      const output = await translatorRef.current(currentText);
 
       setTranslatedText(output[0].translation_text);
       setStatus('Translation complete.');
@@ -60,16 +66,20 @@ export const Translation = () => {
     }
   };
 
-  const swapLanguages = () => {
-    setSourceLang(targetLang);
-    setTargetLang(sourceLang);
-  };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (translatorRef.current && typeof translatorRef.current.dispose === 'function') {
+        try { translatorRef.current.dispose(); } catch (e) { }
+      }
+    };
+  }, []);
 
   return (
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300">
       <div class="p-6 md:p-8">
-        <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Multi-Language Translator</h3>
-        <p class="text-slate-500 dark:text-slate-400 mb-6">Translate text between 100+ languages using the memory-efficient M2M-100 model entirely in your browser.</p>
+        <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">French to English Translator</h3>
+        <p class="text-slate-500 dark:text-slate-400 mb-6">Translate text from French to English using the dedicated Opus-MT model entirely in your browser.</p>
 
         <div class="space-y-6">
           <div class="flex flex-col md:flex-row items-center gap-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -77,8 +87,8 @@ export const Translation = () => {
               <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">From</label>
               <select
                 value={sourceLang}
-                onInput={(e: any) => setSourceLang(e.target.value)}
-                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                disabled
+                class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none cursor-not-allowed opacity-70"
               >
                 {LANGUAGES.map(lang => (
                   <option value={lang.code}>{lang.label}</option>
@@ -87,9 +97,9 @@ export const Translation = () => {
             </div>
 
             <button
-              onClick={swapLanguages}
-              class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500 transition-colors"
-              title="Swap Languages"
+              disabled
+              class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed"
+              title="Swap Languages (Disabled for dedicated model)"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -100,8 +110,8 @@ export const Translation = () => {
               <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">To</label>
               <select
                 value={targetLang}
-                onInput={(e: any) => setTargetLang(e.target.value)}
-                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                disabled
+                class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none cursor-not-allowed opacity-70"
               >
                 {LANGUAGES.map(lang => (
                   <option value={lang.code}>{lang.label}</option>

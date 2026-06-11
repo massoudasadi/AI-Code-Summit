@@ -1,10 +1,15 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { AutoModelForCausalLM, AutoTokenizer, env } from '@huggingface/transformers';
 
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => void }) => {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([
@@ -42,7 +47,7 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
     if (!input.trim() || loading) return;
 
     const userMessage = { role: 'user', content: input };
-    
+
     // Ensure alternating roles: if the last message was also from 'user', 
     // we should ideally merge or wait. But here we'll just ensure we don't break the pattern.
     const lastMessage = messages[messages.length - 1];
@@ -126,7 +131,7 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
 
       const assistantMessage = { role: 'assistant', content: decoded.trim() || 'Command acknowledged.' };
       setMessages(prev => [...prev, assistantMessage]);
-      
+
       if (startIndex === -1) {
         setStatus('Response generated.');
       }
@@ -137,10 +142,17 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
       setLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (modelRef.current && typeof modelRef.current.dispose === 'function') { try { modelRef.current.dispose(); } catch (e) {} }
+      if (tokenizerRef.current && typeof tokenizerRef.current.dispose === 'function') { try { tokenizerRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[600px] transition-colors duration-300">
-      <div class="p-6 md:p-8 flex-shrink-0 border-b border-slate-100 dark:border-slate-800">
+      <div class="p-6 md:p-8 shrink-0 border-b border-slate-100 dark:border-slate-800">
         <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">AI Theme Controller</h3>
         <p class="text-slate-500 dark:text-slate-400">Ask the assistant to change the theme and watch it happen in real-time.</p>
         <span class="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full inline-block mt-2">
@@ -148,7 +160,7 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
         </span>
       </div>
 
-      <div class="flex-grow overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+      <div class="grow overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-950/50">
         {messages.filter(m => m.role !== 'developer').map((msg) => (
           <div class={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div class={`max-w-[80%] rounded-2xl px-5 py-3 ${msg.role === 'user'
@@ -179,7 +191,7 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
             onKeyDown={(e: any) => e.key === 'Enter' && handleSend()}
             disabled={loading}
             placeholder="Try: Turn on dark mode or Switch to light theme."
-            class="flex-grow px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all disabled:opacity-50 text-slate-800 dark:text-slate-200"
+            class="grow px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all disabled:opacity-50 text-slate-800 dark:text-slate-200"
           />
           <button
             onClick={handleSend}
@@ -193,3 +205,4 @@ export const FunctionCalling = ({ setTheme }: { setTheme: (theme: string) => voi
     </div>
   );
 };
+

@@ -1,11 +1,16 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { AutoModelForCausalLM, AutoTokenizer, env, TextStreamer } from '@huggingface/transformers';
 
 // Configure transformers.js to load models from remote and use browser cache
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 export const GemmaChat = () => {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
@@ -27,7 +32,7 @@ export const GemmaChat = () => {
     setStatus('Gemma 3 is thinking...');
 
     try {
-      const model_id = 'onnx-community/gemma-3-270m-it-ONNX';
+      const model_id = 'onnx-community/gemma-3-1b-it-ONNX';
 
       if (!tokenizerRef.current) {
         setStatus('Loading Gemma 3 Tokenizer...');
@@ -35,7 +40,7 @@ export const GemmaChat = () => {
       }
 
       if (!modelRef.current) {
-        setStatus('Loading Gemma 3 Model (270M)...');
+        setStatus('Loading Gemma 3 Model (1B)...');
         modelRef.current = await AutoModelForCausalLM.from_pretrained(model_id, {
           dtype: 'q4',
           device: 'webgpu'
@@ -84,17 +89,24 @@ export const GemmaChat = () => {
       setLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (modelRef.current && typeof modelRef.current.dispose === 'function') { try { modelRef.current.dispose(); } catch (e) {} }
+      if (tokenizerRef.current && typeof tokenizerRef.current.dispose === 'function') { try { tokenizerRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[600px] transition-colors duration-300">
-      <div class="p-6 md:p-8 flex-shrink-0 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900">
+      <div class="p-6 md:p-8 shrink-0 border-b border-slate-100 dark:border-slate-800 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900">
         <div class="flex items-center justify-between">
           <div>
             <h3 class="text-2xl font-bold text-slate-900 dark:text-white">Gemma 3 Chat</h3>
             <p class="text-slate-500 dark:text-slate-400 text-sm">Powered by Google's latest lightweight model.</p>
           </div>
           <div class="px-3 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-xs font-bold uppercase tracking-wider">
-            270M IT
+            1B IT
           </div>
         </div>
         <span class="text-xs font-medium text-slate-400 dark:text-slate-500 mt-2 block italic">
@@ -102,7 +114,7 @@ export const GemmaChat = () => {
         </span>
       </div>
 
-      <div class="flex-grow overflow-y-auto p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
+      <div class="grow overflow-y-auto p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
         {messages.length === 0 && (
           <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
             <div class="bg-white dark:bg-slate-800 p-4 rounded-full shadow-sm border border-slate-100 dark:border-slate-700">
@@ -116,12 +128,12 @@ export const GemmaChat = () => {
             </div>
           </div>
         )}
-        
+
         {messages.map((msg) => (
           <div class={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
             <div class={`max-w-[85%] rounded-2xl px-5 py-3 ${msg.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tr-sm shadow-md'
-                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-sm rounded-tl-sm'
+              ? 'bg-blue-600 text-white rounded-tr-sm shadow-md'
+              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-sm rounded-tl-sm'
               }`}>
               <p class="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
             </div>
@@ -147,7 +159,7 @@ export const GemmaChat = () => {
             onKeyDown={(e: any) => e.key === 'Enter' && handleSend()}
             disabled={loading}
             placeholder="Ask me anything..."
-            class="flex-grow px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all disabled:opacity-50 text-slate-800 dark:text-slate-200"
+            class="grow px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all disabled:opacity-50 text-slate-800 dark:text-slate-200"
           />
           <button
             onClick={handleSend}
@@ -163,3 +175,5 @@ export const GemmaChat = () => {
     </div>
   );
 };
+
+

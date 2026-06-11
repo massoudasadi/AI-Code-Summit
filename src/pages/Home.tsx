@@ -22,7 +22,7 @@ export const Home = ({ navigate }: { navigate: (path: string) => void }) => {
           </div>
           <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-3">Gemma 3 Chat</h3>
           <p class="text-slate-600 dark:text-slate-400 leading-relaxed">
-            Chat with Google's latest state-of-the-art multimodal lightweight model (270M).
+            Chat with Google's latest state-of-the-art multimodal lightweight model (1B).
           </p>
         </div>
 
@@ -82,7 +82,7 @@ export const Home = ({ navigate }: { navigate: (path: string) => void }) => {
           </div>
           <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-3">Function Calling</h3>
           <p class="text-slate-600 dark:text-slate-400 leading-relaxed">
-            Chat with FunctionGemma-270M and see it interact with mocked real-world tools.
+            Chat with Gemma 3 1B and see it interact with mocked real-world tools.
           </p>
         </div>
 
@@ -127,10 +127,11 @@ export const Home = ({ navigate }: { navigate: (path: string) => void }) => {
           </div>
           <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-3">Translator</h3>
           <p class="text-slate-600 dark:text-slate-400 leading-relaxed">
-            Translate between 100+ languages using the memory-efficient M2M-100 model.
+            Translate from French to English using the dedicated Opus-MT model.
           </p>
         </div>
       </div>
     </div>
   );
 };
+

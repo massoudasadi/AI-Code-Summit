@@ -1,17 +1,22 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { pipeline, env } from '@huggingface/transformers';
 
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 export const SpeechToText = () => {
   const [transcription, setTranscription] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('Click start to record audio.');
   const [isRecording, setIsRecording] = useState(false);
-  
+
   const transcriberRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -55,15 +60,15 @@ export const SpeechToText = () => {
     try {
       if (!transcriberRef.current) {
         setStatus('Loading Whisper-Tiny model...');
-        transcriberRef.current = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', { 
-          dtype: 'quantized',
+        transcriberRef.current = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+          dtype: 'q8',
           device: 'webgpu'
         });
       }
 
       setStatus('Transcribing audio...');
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      
+
       // Convert Blob to Float32Array
       const audioContext = new AudioContext({ sampleRate: 16000 });
       const arrayBuffer = await audioBlob.arrayBuffer();
@@ -80,13 +85,19 @@ export const SpeechToText = () => {
       setLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (transcriberRef.current && typeof transcriberRef.current.dispose === 'function') { try { transcriberRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
       <div class="p-6 md:p-8">
         <h3 class="text-2xl font-bold text-slate-900 mb-2">Speech to Text</h3>
         <p class="text-slate-500 mb-6">Record your voice to generate text natively in your browser using Whisper-Tiny.</p>
-        
+
         <div class="space-y-6">
           <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
             <span class="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full w-full sm:w-auto text-center truncate max-w-full">
@@ -129,3 +140,4 @@ export const SpeechToText = () => {
     </div>
   );
 };
+

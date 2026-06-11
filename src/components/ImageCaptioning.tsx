@@ -1,11 +1,16 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { pipeline, env } from '@huggingface/transformers';
 
 // Configure transformers.js
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 export const ImageCaptioning = () => {
   const [image, setImage] = useState<string | null>(null);
@@ -37,6 +42,7 @@ export const ImageCaptioning = () => {
       if (!captionerRef.current) {
         setStatus('Loading ViT-GPT2 model...');
         captionerRef.current = await pipeline('image-to-text', 'Xenova/vit-gpt2-image-captioning', { 
+          dtype: 'q8',
           device: 'webgpu' 
         });
       }
@@ -52,6 +58,12 @@ export const ImageCaptioning = () => {
       setLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (captionerRef.current && typeof captionerRef.current.dispose === 'function') { try { captionerRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
@@ -126,3 +138,4 @@ export const ImageCaptioning = () => {
     </div>
   );
 };
+

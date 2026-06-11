@@ -1,11 +1,16 @@
-import { useState, useRef } from 'hono/jsx/dom';
+import {  useState, useRef , useEffect } from 'hono/jsx/dom';
 import { AutoModel, AutoTokenizer, env } from '@huggingface/transformers';
 
 // Configure transformers.js to load models from our local public directory
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.localModelPath = '/models/';
 env.useBrowserCache = true;
+// Prevent WebAssembly OOM and Memory Bloat
+if (!(env as any).backends) (env as any).backends = {};
+if (!(env as any).backends.onnx) (env as any).backends.onnx = {};
+if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
+(env as any).backends.onnx.wasm.numThreads = 1;
 
 const cosineSimilarity = (a: number[], b: number[]) => {
   let dotProduct = 0;
@@ -41,8 +46,8 @@ export const TextEmbedding = () => {
     }
     if (!modelRef.current) {
       setDocStatus('Loading EmbeddingGemma-300M Model...');
-      modelRef.current = await AutoModel.from_pretrained('onnx-community/embeddinggemma-300m-ONNX', { 
-        dtype: 'q4', 
+      modelRef.current = await AutoModel.from_pretrained('onnx-community/embeddinggemma-300m-ONNX', {
+        dtype: 'q4',
         device: 'webgpu'
       });
     }
@@ -68,15 +73,15 @@ export const TextEmbedding = () => {
 
       // Simple chunking by paragraph
       const textChunks = docText.split(/\n\n+/).map(c => c.trim()).filter(c => c.length > 20);
-      
+
       const newChunks: { text: string; embedding: number[] }[] = [];
-      
+
       for (let i = 0; i < textChunks.length; i++) {
         setDocStatus(`Embedding chunk ${i + 1} of ${textChunks.length}...`);
         const prompt = `title: none | text: ${textChunks[i]}`;
         const inputs = await tokenizerRef.current(prompt);
         const output = await modelRef.current(inputs);
-        
+
         // Gemma 3 sentence embeddings are usually in sentence_embedding or last_hidden_state
         const embedding = output.sentence_embedding || output.last_hidden_state;
         newChunks.push({
@@ -116,29 +121,36 @@ export const TextEmbedding = () => {
       // Sort descending by score and pick top 3
       results.sort((a, b) => b.score - a.score);
       setSearchResults(results.slice(0, 3));
-      
+
     } catch (error: any) {
       console.error(error);
     } finally {
       setQueryLoading(false);
     }
   };
+  // Clean up WebGPU / WASM memory when navigating away
+  useEffect(() => {
+    return () => {
+      if (modelRef.current && typeof modelRef.current.dispose === 'function') { try { modelRef.current.dispose(); } catch (e) {} }
+      if (tokenizerRef.current && typeof tokenizerRef.current.dispose === 'function') { try { tokenizerRef.current.dispose(); } catch (e) {} }
+    };
+  }, []);
 
   return (
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
       <div class="p-6 md:p-8">
         <h3 class="text-2xl font-bold text-slate-900 mb-2">Semantic Search (RAG)</h3>
         <p class="text-slate-500 mb-6">Upload a document or paste text, vectorise it, and search through the context.</p>
-        
+
         <div class="space-y-8">
           {/* Document Section */}
           <div class="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <div class="flex items-center justify-between mb-4">
               <h4 class="font-bold text-slate-800">1. Source Document</h4>
-              <input 
-                type="file" 
-                accept=".txt" 
-                onChange={handleFileUpload} 
+              <input
+                type="file"
+                accept=".txt"
+                onChange={handleFileUpload}
                 class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
             </div>
@@ -148,7 +160,7 @@ export const TextEmbedding = () => {
               placeholder="Paste a long passage here or upload a .txt file..."
               class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all resize-y h-48 text-slate-800 mb-4"
             />
-            
+
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
               <span class="text-sm font-medium text-blue-600 bg-blue-50 px-4 py-2 rounded-full w-full sm:w-auto text-center truncate max-w-full">
                 {docStatus || 'Paste text and click Vectorise'}
@@ -172,7 +184,7 @@ export const TextEmbedding = () => {
                 value={query}
                 onInput={(e: any) => setQuery(e.target.value)}
                 placeholder="Ask a question or search for a topic..."
-                class="flex-grow px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-800"
+                class="grow px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-800"
                 onKeyDown={(e: any) => e.key === 'Enter' && handleSearch()}
               />
               <button
@@ -207,3 +219,4 @@ export const TextEmbedding = () => {
     </div>
   );
 };
+
