@@ -26,13 +26,13 @@ const cosineSimilarity = (a: number[], b: number[]) => {
 
 export const TextEmbedding = () => {
   // Document state
-  const [docText, setDocText] = useState('');
+  const [docText, setDocText] = useState('Armenia is a landlocked country in the South Caucasus region of Eurasia.\n\nIt is bordered by Turkey to the west, Georgia to the north, Azerbaijan to the east, and Iran to the south.\n\nThe capital and largest city is Yerevan, which is one of the world\'s oldest continuously inhabited cities.\n\nArmenia has a rich cultural heritage and was the first nation to adopt Christianity as its state religion in 301 AD.');
   const [chunks, setChunks] = useState<{ text: string; embedding: number[] }[]>([]);
   const [docLoading, setDocLoading] = useState(false);
   const [docStatus, setDocStatus] = useState('');
 
   // Query state
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('What is the capital of Armenia?');
   const [searchResults, setSearchResults] = useState<{ text: string; score: number }[]>([]);
   const [queryLoading, setQueryLoading] = useState(false);
 

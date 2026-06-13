@@ -14,7 +14,7 @@ if (!(env as any).backends.onnx.wasm) (env as any).backends.onnx.wasm = {};
 
 export const GemmaChat = () => {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState('what is the capital of Armenia?');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('Gemma 3 is ready to chat!');
 

@@ -86,7 +86,7 @@ export const App = () => {
               )}
             </button>
             <nav class="hidden sm:block">
-              <a href="#" class="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Documentation</a>
+              <a href="https://github.com/massoudasadi/AI-Code-Summit" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">GitHub</a>
             </nav>
           </div>
         </div>
